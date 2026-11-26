@@ -1,0 +1,28 @@
+/runs/
+__pycache__/
+*.pcap
+*.pcapng
+
+# Virtual machine disks and installer media
+*.qcow
+*.qcow2
+*.vdi
+*.vmdk
+*.img
+*.img.gz
+*.iso
+*.iso.gz
+
+# Local credentials and workspace state
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+admin-password.txt
+/.aws/
+/.agents/
+/.codex/

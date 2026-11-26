@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd -- "$root"
+
+usage() {
+  cat <<'EOF'
+Usage
+  ./lab test                  Run Suricata on generated positive and control flows
+  ./lab analyze FILE.pcap     Analyze a capture and print its EVE JSON path
+  ./lab up                    Start Elasticsearch, Logstash and Kibana
+  ./lab ingest FILE.json      Send EVE events to ELK and wait for indexing
+  ./lab down                  Stop ELK services
+EOF
+}
+
+require() {
+  if ! command -v "$1" >/dev/null; then
+    printf 'Missing dependency: %s\n' "$1" >&2
+    exit 1
+  fi
+}
+
+check_args() {
+  if [[ "$1" != "$2" ]]; then
+    usage >&2
+    exit 2
+  fi
+}
+
+new_run() {
+  mkdir -p -- "$root/runs"
+  mktemp -d -- "$root/runs/$(date -u +%Y%m%dT%H%M%SZ)-$1-XXXXXX"
+}
+
+analyze() {
+  local capture="$1" report_dir="$2"
+  suricata -c "$root/sensor/suricata.yaml" -S "$root/sensor/local.rules" \
+    --init-errors-fatal --runmode single -r "$capture" -l "$report_dir" \
+    >"$report_dir/suricata-cli.log" 2>&1 || {
+    cat -- "$report_dir/suricata-cli.log" >&2
+    exit 1
+  }
+  if [[ ! -s "$report_dir/eve.json" ]]; then
+    printf 'Suricata produced no EVE records. See %s/suricata-cli.log\n' "$report_dir" >&2
+    exit 1
+  fi
+}
+
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 0
+fi
+
+operation="$1"
+shift
+case "$operation" in
+  test)
+    check_args "$#" 0
+    require suricata
+    require python3
+    run="$(new_run test)"
+    python3 sensor/fixtures.py "$run/fixture.pcap"
+    analyze "$run/fixture.pcap" "$run"
+    printf 'EVE JSON: %s/eve.json\n' "$run" >&2
+    python3 sensor/verify.py "$run/eve.json" | tee "$run/verification.json"
+    ;;
+  analyze)
+    check_args "$#" 1
+    require suricata
+    capture="$(realpath -e -- "$1")"
+    if [[ ! -f "$capture" || ! -r "$capture" ]]; then
+      printf 'Capture must be a readable regular file: %s\n' "$1" >&2
+      exit 2
+    fi
+    run="$(new_run capture)"
+    analyze "$capture" "$run"
+    printf '%s/eve.json\n' "$run"
+    ;;
+  up)
+    check_args "$#" 0
+    require docker
+    engine_version="$(docker version --format '{{.Server.Version}}')"
+    if [[ ! "$engine_version" =~ ^([0-9]+)\. ]] || (( BASH_REMATCH[1] < 28 )); then
+      printf 'Use Docker Engine 28 or newer for loopback-only ELK ports. Found: %s\n' "$engine_version" >&2
+      exit 1
+    fi
+    docker compose -f elk/compose.yml up -d
+    ;;
+  ingest)
+    check_args "$#" 1
+    require python3
+    python3 elk/ingest.py "$1"
+    ;;
+  down)
+    check_args "$#" 0
+    require docker
+    docker compose -f elk/compose.yml down
+    ;;
+  --help|-h)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

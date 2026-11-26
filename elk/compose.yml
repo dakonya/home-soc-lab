@@ -1,0 +1,54 @@
+name: home-soc-lab
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.22
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      node.store.allow_mmap: "false"
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+    mem_limit: 2560m
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=2s' >/dev/null"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+      start_period: 25s
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.19.22
+    environment:
+      LS_JAVA_OPTS: "-Xms512m -Xmx512m"
+      PIPELINE_WORKERS: "1"
+      XPACK_MONITORING_ENABLED: "false"
+    mem_limit: 1536m
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8088:8080"
+    volumes:
+      - ./pipeline:/usr/share/logstash/pipeline:ro
+      - ./suricata-template.json:/usr/share/logstash/config/suricata-template.json:ro
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.19.22
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      SERVER_HOST: "0.0.0.0"
+      NODE_OPTIONS: "--max-old-space-size=1024"
+      TELEMETRY_ENABLED: "false"
+    mem_limit: 2048m
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5601:5601"
+
+volumes:
+  elasticsearch-data:

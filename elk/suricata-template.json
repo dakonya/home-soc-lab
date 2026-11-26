@@ -1,0 +1,44 @@
+{
+  "index_patterns": ["soc-suricata-*"],
+  "template": {
+    "settings": {"number_of_shards": 1, "number_of_replicas": 0},
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp": {"type": "date"},
+        "lab_run_id": {"type": "keyword"},
+        "lab_record_id": {"type": "keyword"},
+        "suricata": {
+          "properties": {
+            "timestamp": {"type": "keyword"},
+            "event_type": {"type": "keyword"},
+            "app_proto": {"type": "keyword"},
+            "proto": {"type": "keyword"},
+            "flow_id": {"type": "unsigned_long"},
+            "src_ip": {"type": "ip"},
+            "dest_ip": {"type": "ip"},
+            "src_port": {"type": "integer"},
+            "dest_port": {"type": "integer"},
+            "alert": {
+              "properties": {
+                "action": {"type": "keyword"},
+                "category": {"type": "keyword"},
+                "signature": {"type": "keyword"},
+                "signature_id": {"type": "long"},
+                "severity": {"type": "integer"}
+              }
+            },
+            "http": {
+              "properties": {
+                "hostname": {"type": "keyword", "ignore_above": 512},
+                "http_method": {"type": "keyword"},
+                "status": {"type": "integer"},
+                "url": {"type": "keyword", "ignore_above": 2048}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

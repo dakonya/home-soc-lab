@@ -1,0 +1,28 @@
+# Local SOC lab policy, Suricata 7+. Keep the sensor scoped to your lab network.
+# HTTP buffers apply to cleartext HTTP visible at the sensor.
+alert http any any -> any any (msg:"SOC LAB HTTP canary requested"; flow:established,to_server; http.method; content:"GET"; bsize:3; http.uri; content:"/soc-lab-canary"; bsize:15; sid:1000001; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP cleartext Basic authorization"; flow:established,to_server; http.request_header; content:"Authorization|3a 20|Basic|20|"; nocase; startswith; sid:1000002; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP cleartext Bearer authorization"; flow:established,to_server; http.request_header; content:"Authorization|3a 20|Bearer|20|"; nocase; startswith; sid:1000003; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP session cookie on cleartext transport"; flow:established,to_server; http.cookie; content:"session_id="; nocase; pcre:"/(?:^|\x3b\s*)session_id=/i"; sid:1000004; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP TRACE method"; flow:established,to_server; http.method; content:"TRACE"; bsize:5; sid:1000005; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP CONNECT method"; flow:established,to_server; http.method; content:"CONNECT"; bsize:7; sid:1000006; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP binary upload with PUT"; flow:established,to_server; http.method; content:"PUT"; bsize:3; http.content_type; content:"application/octet-stream"; nocase; startswith; sid:1000007; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP token parameter in URI"; flow:established,to_server; http.uri; content:"token="; nocase; pcre:"/[?&]token=/i"; sid:1000008; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP admin route requested"; flow:established,to_server; http.uri; content:"/admin/"; startswith; sid:1000009; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP SQL backup requested"; flow:established,to_server; http.uri; content:"/backup/"; startswith; content:".sql"; nocase; endswith; sid:1000010; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP debug route requested"; flow:established,to_server; http.uri; content:"/debug/vars"; bsize:11; sid:1000011; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP retired inventory agent"; flow:established,to_server; http.user_agent; content:"LegacyInventory/1."; startswith; sid:1000012; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP proxy header on direct client path"; flow:established,to_server; http.header_names; content:"|0d 0a|X-Forwarded-For|0d 0a|"; nocase; sid:1000013; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP WebDAV discovery request"; flow:established,to_server; http.method; content:"PROPFIND"; bsize:8; sid:1000014; rev:1;)
+alert http any any -> any any (msg:"SOC LAB HTTP cleartext API key in form body"; flow:established,to_server; http.content_type; content:"application/x-www-form-urlencoded"; nocase; startswith; http.request_body; content:"api_key="; nocase; pcre:"/(?:^|&)api_key=/i"; sid:1000015; rev:1;)
+
+# DNS queries addressed to conventional DNS port 53.
+alert dns any any -> any 53 (msg:"SOC LAB DNS proxy auto-discovery name"; dns.query; content:"wpad."; nocase; startswith; sid:1000016; rev:1;)
+alert dns any any -> any 53 (msg:"SOC LAB DNS local name sent to unicast resolver"; dns.query; content:".local"; nocase; endswith; sid:1000017; rev:1;)
+alert dns any any -> any 53 (msg:"SOC LAB DNS lab watchlist name"; dns.query; content:"blocked-sink.lab.test"; nocase; bsize:21; sid:1000018; rev:1;)
+alert dns any any -> any 53 (msg:"SOC LAB DNS long hexadecimal first label"; dns.query; pcre:"/^[0-9a-f]{48,63}\./i"; sid:1000019; rev:1;)
+
+# Transport indicators: a SYN is a connection attempt, not evidence of login.
+alert tcp any any -> any 23 (msg:"SOC LAB TCP connection attempt to Telnet port"; flow:to_server; flags:S; sid:1000020; rev:1;)
+alert tcp any any -> any 21 (msg:"SOC LAB TCP connection attempt to FTP control port"; flow:to_server; flags:S; sid:1000021; rev:1;)
+alert udp any any -> any 69 (msg:"SOC LAB UDP TFTP read request opcode"; dsize:>6; content:"|00 01|"; startswith; sid:1000022; rev:1;)
